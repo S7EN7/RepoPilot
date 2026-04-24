@@ -1,7 +1,7 @@
 [project]
 name = "repopilot"
 version = "0.1.0"
-description = "Add your description here"
+description = "GitHub repository intelligent analysis assistant"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -10,8 +10,17 @@ dependencies = [
     "fastapi>=0.136.1",
     "jinja2>=3.1.6",
     "langchain>=1.2.15",
+    "langchain-openai>=1.2.0",
+    "pydantic-settings>=2.14.0",
     "pygithub>=2.9.1",
+    "python-dotenv>=1.2.2",
     "rich>=15.0.0",
     "sqlalchemy>=2.0.49",
     "typer>=0.24.2",
 ]
+
+[project.scripts]
+repopilot = "repopilot.main:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
