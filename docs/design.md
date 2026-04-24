@@ -26,9 +26,8 @@ src/repopilot/
 │
 ├── github/                      # GitHub 数据采集
 │   ├── __init__.py
-│   ├── fetcher.py               # PyGithub 采集逻辑
 │   ├── schemas.py               # RepoData 数据模型
-│   └── service.py               # GitHub 采集业务编排
+│   └── service.py               # GitHub 采集（URL 校验 + PyGithub 采集 + 日志）
 │
 ├── rag/                         # RAG 检索增强
 │   ├── __init__.py
@@ -287,12 +286,14 @@ class AnalysisRecord(Base):
   - `REPOPILOT_CHROMA_PATH` — ChromaDB 持久化路径（默认 `database/chroma`）
 
 ### `utils/logger.py`
-- 日志格式：`时间 | 日志级别 | 模块名 | 消息`
-  - 示例：`2026-04-24 16:10:32 | INFO     | app.main | 应用启动成功`
-  - 异常：`2026-04-24 16:11:20 | ERROR    | github.clone | 仓库克隆失败 | error=Permission denied`
-- 日志同时输出到终端（stderr）和 `logs/repopilot.log`（按日期轮转，保留 7 天）
-- 支持 `debug` 参数切换终端日志级别（默认 INFO，debug 模式输出 DEBUG）
-- 文件日志始终记录 DEBUG 级别，便于排查问题
+- 工厂模式：`get_logger(name)` 为每个模块创建独立 logger 实例
+- 日志格式：`时间 | 日志级别 | 模块名 | 文件名:行号 | 消息`
+  - 示例：`2026-04-24 16:10:32 | INFO     | repopilot.github.service | service.py:42 | 开始采集仓库`
+  - 异常：`2026-04-24 16:11:20 | ERROR    | repopilot.github.service | service.py:58 | 仓库克隆失败 | error=Permission denied`
+- 终端输出（stderr）+ 文件输出（`logs/` 目录）双通道
+- 日志文件按模块名 + 日期命名（如 `repopilot.github.service_20260424.log`），按大小轮转（5MB，保留 3 个备份）
+- 终端默认 INFO 级别，文件始终 DEBUG 级别
+- 使用方式：`from repopilot.utils.logger import get_logger; logger = get_logger(__name__)`
 - 五级日志使用规范：
   - `INFO` — 用户提交仓库、开始克隆、开始分析、分析完成等正常业务流程
   - `WARNING` — token 缺失、仓库过大、部分文件无法解析等非致命异常
@@ -300,16 +301,15 @@ class AnalysisRecord(Base):
   - `CRITICAL` — 数据库无法连接、核心配置缺失等不可恢复错误
   - `DEBUG` — prompt 内容、RAG 检索结果、工具调用参数等调试信息
 
-### `github/fetcher.py`
-- `fetch_repo_data(url: str) -> RepoData` — 底层采集逻辑，调用 PyGithub API
-- 边界处理：私有仓库报错提示权限不足、大文件截断保留头尾摘要
-
 ### `github/service.py`
-- `GithubService` — GitHub 采集业务编排
-- 校验 URL 格式、调用 fetcher 采集、日志记录采集进度
+- `GithubService` — GitHub 采集服务
+- URL 格式校验（支持 https://github.com/owner/repo、.git 后缀等）
+- 调用 PyGithub API 采集仓库数据，返回 `RepoData`
+- 边界处理：私有仓库报错提示权限不足、大文件截断保留头尾摘要
+- 日志记录采集进度
 
 ### `github/schemas.py`
-- `RepoData` dataclass，字段包括：
+- `RepoData` Pydantic BaseModel，字段包括：
   - `repo_url`, `repo_name`, `owner`, `name`
   - `description`, `language`, `topics`
   - `stars`, `forks`, `open_issues`, `license`
@@ -408,14 +408,13 @@ class AnalysisRecord(Base):
 
 | Step | 任务 | 预计 | 验证方式 |
 |------|------|------|----------|
-| 6 | 定义 `github/schemas.py` — `RepoData` dataclass 全部字段 | 0.5h | 类型定义完整，可实例化 |
-| 7 | 实现 `github/fetcher.py` — 获取 repo 元数据（stars、forks、language、topics、license、description） | 1h | 打印元数据 JSON |
-| 8 | 实现 `github/fetcher.py` — 获取目录结构树 | 0.5h | 打印目录树文本 |
-| 9 | 实现 `github/fetcher.py` — 获取 README 内容 | 0.5h | 打印 README 文本 |
-| 10 | 实现 `github/fetcher.py` — 获取关键配置文件内容（package.json、requirements.txt、pyproject.toml、Dockerfile 等） | 0.5h | 打印关键文件内容 |
-| 11 | 实现 `github/fetcher.py` — 获取最近 commits 摘要和 issue/PR 统计 | 0.5h | 打印 commit 和 issue 数据 |
-| 12 | 实现 `github/service.py` — URL 格式校验、调用 fetcher、日志记录采集进度 | 0.5h | 非法 URL 报错，合法 URL 返回完整 RepoData |
-| 13 | 边界处理 — 私有仓库权限报错、大文件截断（保留头尾摘要）、README 缺失降级为仓库描述 | 0.5h | 异常场景有友好提示 |
+| 6 | 定义 `github/schemas.py` — `RepoData` Pydantic BaseModel 全部字段 | 0.5h | 类型定义完整，可实例化 |
+| 7 | 实现 `github/service.py` — URL 格式校验 + 获取 repo 元数据（stars、forks、language、topics、license、description） | 1h | 打印元数据 JSON |
+| 8 | 实现 `github/service.py` — 获取目录结构树 | 0.5h | 打印目录树文本 |
+| 9 | 实现 `github/service.py` — 获取 README 内容 | 0.5h | 打印 README 文本 |
+| 10 | 实现 `github/service.py` — 获取关键配置文件内容（package.json、requirements.txt、pyproject.toml、Dockerfile 等） | 0.5h | 打印关键文件内容 |
+| 11 | 实现 `github/service.py` — 获取最近 commits 摘要和 issue/PR 统计 | 0.5h | 打印 commit 和 issue 数据 |
+| 12 | 实现 `github/service.py` — 边界处理：私有仓库权限报错、大文件截断、README 缺失降级 | 0.5h | 异常场景有友好提示 |
 
 #### 三、向量存储与 RAG
 
@@ -523,9 +522,8 @@ class AnalysisRecord(Base):
 | `src/repopilot/utils/__init__.py` | 工具函数包 |
 | `src/repopilot/utils/logger.py` | 日志配置（输出到 logs/ 目录 + 终端） |
 | `src/repopilot/github/__init__.py` | GitHub 采集包 |
-| `src/repopilot/github/fetcher.py` | PyGithub 采集逻辑 |
 | `src/repopilot/github/schemas.py` | RepoData 数据模型 |
-| `src/repopilot/github/service.py` | GitHub 采集业务编排 |
+| `src/repopilot/github/service.py` | GitHub 采集服务（URL 校验 + 数据采集 + 日志） |
 | `src/repopilot/rag/__init__.py` | RAG 包 |
 | `src/repopilot/rag/vectorstore.py` | ChromaDB embedding + 检索 |
 | `src/repopilot/rag/service.py` | RAG 业务编排 |
