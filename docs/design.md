@@ -19,7 +19,10 @@ src/repopilot/
 ├── __init__.py
 ├── main.py                      # 统一入口，分发 CLI/Web
 ├── config.py                    # 配置 + 环境变量
-├── logger.py                    # 日志配置
+│
+├── utils/                       # 通用工具函数
+│   ├── __init__.py
+│   └── logger.py                # 日志配置（输出到 logs/ 目录 + 终端）
 │
 ├── github/                      # GitHub 数据采集
 │   ├── __init__.py
@@ -32,10 +35,15 @@ src/repopilot/
 │   ├── vectorstore.py           # ChromaDB embedding + 检索
 │   └── service.py               # RAG 业务编排（分块、入库、查询）
 │
-├── analysis/                    # 分析与评级
+├── agent/                       # LLM Agent 编排
 │   ├── __init__.py
-│   ├── analyzer.py              # LangChain 分析链
-│   ├── grading.py               # 等级映射
+│   ├── analyzer.py              # LangChain 分析链（Prompt + Chain）
+│   ├── prompts.py               # Prompt 模板定义
+│   └── tools.py                 # Agent 工具函数（可扩展）
+│
+├── analysis/                    # 分析评级与持久化
+│   ├── __init__.py
+│   ├── grading.py               # 等级映射（纯逻辑）
 │   ├── schemas.py               # AnalysisResult, GradeResult
 │   ├── repository.py            # 分析记录 CRUD 操作
 │   └── service.py               # 分析业务编排（串联 fetch→embed→analyze→grade→save）
@@ -51,11 +59,14 @@ src/repopilot/
     └── report.py                # Rich 终端渲染
 ```
 
-运行时数据目录（自动创建，已加入 .gitignore）：
+运行时目录（自动创建，已加入 .gitignore）：
 ```
 database/                        # 运行时数据存储
 ├── repopilot.db                 # SQLite 数据库文件
 └── chroma/                      # ChromaDB 向量数据
+
+logs/                            # 日志文件
+└── repopilot.log                # 运行日志（按日期轮转）
 ```
 
 ### Phase 2 新增
@@ -75,10 +86,14 @@ src/repopilot/
 ```
 
 说明：
-- `github/`、`rag/`、`analysis/`、`database/` 是可复用能力层，CLI 和 Web/API 共享
+- `utils/` 放通用工具函数（日志等），不含业务逻辑
+- `github/`、`rag/`、`database/` 是可复用能力层，CLI 和 Web/API 共享
+- `agent/` 负责 LLM 交互编排（Prompt、Chain、Tools），不直接操作数据库
+- `analysis/` 负责评级逻辑、数据模型和持久化，调用 `agent/` 获取 LLM 分析结果
 - `cli/` 是 Phase 1 入口层
 - `web/` 是 Phase 2 入口层，包含 FastAPI 实例、页面路由、REST 接口、模板和静态资源，全部在一个包内
 - `main.py` 负责统一入口分发，不写业务细节
+- `logs/` 存放运行日志文件，按日期轮转
 
 ---
 
@@ -271,12 +286,19 @@ class AnalysisRecord(Base):
   - `REPOPILOT_DB_PATH` — SQLite 数据库路径（默认 `database/repopilot.db`）
   - `REPOPILOT_CHROMA_PATH` — ChromaDB 持久化路径（默认 `database/chroma`）
 
-### `logger.py`
-- 配置 Python logging，格式示例：
-  - `INFO:httpx:HTTP Request: POST https://api.timebackward.com/v1/embeddings "HTTP/1.1 200 OK"`
-  - `INFO:main:  ⏭️  跳过: architecture.md (已入库且未变化)`
-- httpx 日志自动记录 HTTP 请求（LangChain/OpenAI SDK 自带）
-- 业务日志使用中文 emoji 前缀（`⏭️ 跳过`, `✅ 完成`, `📥 获取`）
+### `utils/logger.py`
+- 日志格式：`时间 | 日志级别 | 模块名 | 消息`
+  - 示例：`2026-04-24 16:10:32 | INFO     | app.main | 应用启动成功`
+  - 异常：`2026-04-24 16:11:20 | ERROR    | github.clone | 仓库克隆失败 | error=Permission denied`
+- 日志同时输出到终端（stderr）和 `logs/repopilot.log`（按日期轮转，保留 7 天）
+- 支持 `debug` 参数切换终端日志级别（默认 INFO，debug 模式输出 DEBUG）
+- 文件日志始终记录 DEBUG 级别，便于排查问题
+- 五级日志使用规范：
+  - `INFO` — 用户提交仓库、开始克隆、开始分析、分析完成等正常业务流程
+  - `WARNING` — token 缺失、仓库过大、部分文件无法解析等非致命异常
+  - `ERROR` — 克隆失败、LLM 调用失败、向量库写入失败等可恢复错误
+  - `CRITICAL` — 数据库无法连接、核心配置缺失等不可恢复错误
+  - `DEBUG` — prompt 内容、RAG 检索结果、工具调用参数等调试信息
 
 ### `github/fetcher.py`
 - `fetch_repo_data(url: str) -> RepoData` — 底层采集逻辑，调用 PyGithub API
@@ -307,13 +329,22 @@ class AnalysisRecord(Base):
 - `RagService` — RAG 业务编排
 - 协调文件分块、embedding 入库、检索查询的完整流程
 
-### `analysis/analyzer.py`
+### `agent/analyzer.py`
 - `analyze_repo(repo_data: RepoData, rag_context: str) -> AnalysisResult`
 - 构建包含 repo 元数据和 RAG 上下文的 Prompt
 - 使用 `ChatOpenAI` + `StrOutputParser`，要求 LLM 返回结构化 JSON
 - Prompt 中内置等级定义和评分标准
 - JSON 解析失败时自动重试一次，仍失败则返回简化结果（至少包含 summary 和基础评分）
 - AnalysisResult 包含 `confidence` 字段（LLM 自评置信度 0-1），用于报告展示
+
+### `agent/prompts.py`
+- 分析 Prompt 模板定义
+- 系统角色设定、等级定义说明、评分标准
+- 输出 JSON schema 要求、字段说明
+
+### `agent/tools.py`
+- Agent 工具函数定义（可扩展）
+- 为后续 Agent 能力扩展预留接口
 
 ### `analysis/grading.py`
 - `grade(analysis: AnalysisResult) -> GradeResult`
@@ -369,7 +400,7 @@ class AnalysisRecord(Base):
 |------|------|------|----------|
 | 1 | 创建 `src/repopilot/` 完整目录结构，所有子包的 `__init__.py` | 0.5h | `tree src/` 显示完整目录 |
 | 2 | 实现 `config.py` — pydantic-settings 加载 `.env`，定义全部配置项（API Key、Base URL、模型名、DB 路径、ChromaDB 路径） | 1h | `from repopilot.config import settings` 能读取环境变量 |
-| 3 | 实现 `logger.py` — 配置 logging 格式、httpx 日志级别、emoji 前缀 | 0.5h | 日志输出格式符合预期 |
+| 3 | 实现 `utils/logger.py` — 五级日志规范（INFO/WARNING/ERROR/CRITICAL/DEBUG），终端 + 文件双输出，按日期轮转 | 0.5h | 日志输出格式符合预期 |
 | 4 | 创建 `.env.example` 模板，包含所有必需环境变量和注释说明 | 0.5h | 文件内容完整 |
 | 5 | 更新 `pyproject.toml` — 入口点改为 `src/repopilot`，script 指向 `repopilot.cli.app:app` | 0.5h | `repopilot --help` 正常显示 |
 
@@ -400,11 +431,11 @@ class AnalysisRecord(Base):
 | Step | 任务 | 预计 | 验证方式 |
 |------|------|------|----------|
 | 18 | 定义 `analysis/schemas.py` — `AnalysisResult` 数据模型（含 confidence 字段）和 `GradeResult` 数据模型 | 0.5h | 类型定义完整，可实例化 |
-| 19 | 设计分析 Prompt 模板 — 系统角色设定、等级定义说明、评分标准 | 1h | Prompt 文本完成 |
-| 20 | 设计分析 Prompt 模板 — 输出 JSON schema 要求、字段说明、示例 | 1h | 手动测试 LLM 返回格式正确 |
-| 21 | 实现 `analysis/analyzer.py` — `ChatOpenAI` 初始化 + LangChain Chain 构建 | 1h | Chain 可调用，不报错 |
-| 22 | 实现 `analysis/analyzer.py` — LLM 返回 JSON 解析逻辑 | 0.5h | 调用 LLM 返回可解析的 AnalysisResult |
-| 23 | 实现 `analysis/analyzer.py` — JSON 解析失败重试一次，仍失败返回简化结果兜底 | 0.5h | 模拟解析失败时返回简化结果 |
+| 19 | 设计 `agent/prompts.py` — 系统角色设定、等级定义说明、评分标准 | 1h | Prompt 文本完成 |
+| 20 | 设计 `agent/prompts.py` — 输出 JSON schema 要求、字段说明、示例 | 1h | 手动测试 LLM 返回格式正确 |
+| 21 | 实现 `agent/analyzer.py` — `ChatOpenAI` 初始化 + LangChain Chain 构建 | 1h | Chain 可调用，不报错 |
+| 22 | 实现 `agent/analyzer.py` — LLM 返回 JSON 解析逻辑 | 0.5h | 调用 LLM 返回可解析的 AnalysisResult |
+| 23 | 实现 `agent/analyzer.py` — JSON 解析失败重试一次，仍失败返回简化结果兜底 | 0.5h | 模拟解析失败时返回简化结果 |
 | 24 | 实现 `analysis/grading.py` — 数值评分映射到 L1-L5 / D1-D5 等级的纯函数 | 0.5h | 输入评分返回正确等级和 reason |
 | 25 | 实现 `analysis/service.py` — 串联 fetch → embed → analyze → grade 完整流程 | 1h | 输入 URL 返回完整 AnalysisResult + GradeResult |
 
@@ -489,7 +520,8 @@ class AnalysisRecord(Base):
 | `src/repopilot/__init__.py` | 包标识 |
 | `src/repopilot/main.py` | 统一入口分发 |
 | `src/repopilot/config.py` | 配置管理 |
-| `src/repopilot/logger.py` | 日志配置 |
+| `src/repopilot/utils/__init__.py` | 工具函数包 |
+| `src/repopilot/utils/logger.py` | 日志配置（输出到 logs/ 目录 + 终端） |
 | `src/repopilot/github/__init__.py` | GitHub 采集包 |
 | `src/repopilot/github/fetcher.py` | PyGithub 采集逻辑 |
 | `src/repopilot/github/schemas.py` | RepoData 数据模型 |
@@ -497,8 +529,11 @@ class AnalysisRecord(Base):
 | `src/repopilot/rag/__init__.py` | RAG 包 |
 | `src/repopilot/rag/vectorstore.py` | ChromaDB embedding + 检索 |
 | `src/repopilot/rag/service.py` | RAG 业务编排 |
+| `src/repopilot/agent/__init__.py` | Agent 编排包 |
+| `src/repopilot/agent/analyzer.py` | LangChain 分析链 |
+| `src/repopilot/agent/prompts.py` | Prompt 模板定义 |
+| `src/repopilot/agent/tools.py` | Agent 工具函数（可扩展） |
 | `src/repopilot/analysis/__init__.py` | 分析包 |
-| `src/repopilot/analysis/analyzer.py` | LangChain 分析链 |
 | `src/repopilot/analysis/grading.py` | 等级映射 |
 | `src/repopilot/analysis/schemas.py` | AnalysisResult, GradeResult |
 | `src/repopilot/analysis/repository.py` | 分析记录 CRUD 操作 |
