@@ -6,7 +6,6 @@ from rich.console import Console
 from rich.table import Table
 
 from repopilot.analysis.repository import AnalysisRepository
-from repopilot.analysis.schemas import AnalysisResult
 from repopilot.analysis.service import AnalysisService
 from repopilot.cli.report import render_report
 from repopilot.database.sqlite import init_db
