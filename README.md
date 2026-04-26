@@ -402,7 +402,7 @@ uv run repopilot analyze https://github.com/owner/repo
 例如：
 
 ```bash
-uv run repopilot analyze https://github.com/tiangolo/fastapi
+uv run repopilot analyze https://github.com/S7EN7/RepoPilot
 ```
 
 ### 3. 查看历史分析记录
