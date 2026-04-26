@@ -1,10 +1,51 @@
 # RepoPilot
 
-RepoPilot 是一个面向 GitHub 仓库的智能分析助手，目标是帮助开发者快速判断一个开源项目的价值、难度和成熟度。
+[![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![CLI](https://img.shields.io/badge/Interface-CLI-4EAA25)](#运行方式)
+[![Agent](https://img.shields.io/badge/Agent-Tool--Calling-7B61FF)](#当前具备能力)
+[![RAG](https://img.shields.io/badge/RAG-ChromaDB-FF6F00)](#当前具备能力)
+[![Database](https://img.shields.io/badge/Database-SQLite%20%2B%20ChromaDB-0F6CBD)](#项目结构)
+[![License](https://img.shields.io/badge/License-MIT-2EA44F)](#许可证)
+
+一个面向 GitHub 仓库的智能分析助手，用来快速判断一个开源项目的价值、难度和成熟度。
 
 它会抓取仓库元数据、README、关键配置文件、提交与 Issue/PR 统计，再结合 RAG 检索和 LLM Agent，输出结构化分析报告。
 
 当前项目已实现 **Phase 1: CLI MVP**，可以在终端直接分析公开 GitHub 仓库，并将结果持久化到本地 SQLite。
+
+## 快速开始
+
+```bash
+uv sync
+uv run repopilot analyze https://github.com/owner/repo
+uv run repopilot history
+```
+
+输入一个公开 GitHub 仓库地址后，当前版本会输出：
+
+- 一句话概述
+- 项目定位
+- 工程成熟度（L1-L5）
+- 复刻难度（D1-D5）
+- 综合评分（0-10）
+- 项目亮点 / 不足 / 建议
+
+## 目录
+
+- [项目特点](#项目特点)
+- [项目定位](#项目定位)
+- [当前具备能力](#当前具备能力)
+- [等级体系设计](#等级体系设计)
+- [分析报告输出内容](#分析报告输出内容)
+- [技术栈](#技术栈)
+- [项目结构](#项目结构)
+- [核心数据流](#核心数据流)
+- [环境要求](#环境要求)
+- [安装](#安装)
+- [配置](#配置)
+- [运行方式](#运行方式)
+- [日志说明](#日志说明)
+- [许可证](#许可证)
 
 ---
 
