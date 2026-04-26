@@ -1,5 +1,4 @@
 import re
-from textwrap import fill
 
 from rich import box
 from rich.console import Console, Group
@@ -16,22 +15,22 @@ def _clean_prefix(text: str) -> str:
     return re.sub(r"^(亮点|不足)\s*\d+\s*[:：]\s*", "", text).strip()
 
 
-def _wrap(text: str, indent: str = "  ") -> str:
-    return fill(text, width=92, initial_indent=indent, subsequent_indent=indent)
+def _paragraph(text: str, indent: str = "  ") -> Text:
+    return Text(indent + text)
 
 
 def _render_bullets(items: list[str]) -> Group:
     lines = []
     for item in items:
         clean = _clean_prefix(item)
-        wrapped = fill(clean, width=88, initial_indent="  • ", subsequent_indent="    ")
-        lines.append(Text.from_markup(wrapped))
+        lines.append(Text("  • "))
+        lines.append(Text("    " + clean))
     return Group(*lines)
 
 
-def render_report(result: AnalysisResult, grade: GradeResult) -> None:
+def render_report(result: AnalysisResult, grade: GradeResult, repo_name: str) -> None:
     title = Panel(
-        Text("RepoPilot 分析报告", style="bold cyan", justify="center"),
+        Text(f"{repo_name} - RepoPilot 分析报告", style="bold cyan", justify="center"),
         box=box.DOUBLE,
         expand=False,
         padding=(0, 2),
@@ -39,8 +38,8 @@ def render_report(result: AnalysisResult, grade: GradeResult) -> None:
     console.print()
     console.print(title)
 
-    console.print(Panel(_wrap(result.summary), title="一句话概述", border_style="cyan", expand=False))
-    console.print(Panel(_wrap(result.positioning), title="项目定位", border_style="blue", expand=False))
+    console.print(Panel(_paragraph(result.summary), title="一句话概述", border_style="cyan", expand=False))
+    console.print(Panel(_paragraph(result.positioning), title="项目定位", border_style="blue", expand=False))
 
     grade_table = Table(box=box.SIMPLE_HEAVY, show_header=False, expand=False, pad_edge=False)
     grade_table.add_column(style="bold cyan", no_wrap=True)
@@ -52,12 +51,12 @@ def render_report(result: AnalysisResult, grade: GradeResult) -> None:
 
     ts = result.tech_stack
     tech_lines = [
-        _wrap(f"语言: {ts.language or '未知'}"),
-        _wrap(f"架构: {ts.architecture or '未知'}"),
+        Text(f"  语言: {ts.language or '未知'}"),
+        Text(f"  架构: {ts.architecture or '未知'}"),
     ]
     if ts.core_deps:
-        tech_lines.append(_wrap(f"核心依赖: {', '.join(ts.core_deps)}"))
-    console.print(Panel(Group(*[Text(line) for line in tech_lines]), title="技术架构", border_style="green", expand=False))
+        tech_lines.append(Text(f"  核心依赖: {', '.join(ts.core_deps)}"))
+    console.print(Panel(Group(*tech_lines), title="技术架构", border_style="green", expand=False))
 
     if result.highlights:
         console.print(Panel(_render_bullets(result.highlights), title="项目亮点", border_style="green", expand=False))
@@ -68,19 +67,20 @@ def render_report(result: AnalysisResult, grade: GradeResult) -> None:
     suggestion_lines = []
     s = result.suggestions
     if s.beginner:
-        suggestion_lines.append(Text(_wrap(f"[入门] {s.beginner}")))
+        suggestion_lines.append(Text(f"  [入门] {s.beginner}"))
     if s.intermediate:
-        suggestion_lines.append(Text(_wrap(f"[中级] {s.intermediate}")))
+        suggestion_lines.append(Text(f"  [中级] {s.intermediate}"))
     if s.senior:
-        suggestion_lines.append(Text(_wrap(f"[高级] {s.senior}")))
+        suggestion_lines.append(Text(f"  [高级] {s.senior}"))
     if suggestion_lines:
         console.print(Panel(Group(*suggestion_lines), title="优化建议", border_style="cyan", expand=False))
 
     if result.target_audience:
-        console.print(Panel(_render_bullets(result.target_audience), title="适合人群", border_style="blue", expand=False))
+        audience_lines = [Text("  • " + item) for item in result.target_audience]
+        console.print(Panel(Group(*audience_lines), title="适合人群", border_style="blue", expand=False))
 
     if result.career_value:
-        console.print(Panel(_wrap(result.career_value), title="求职参考价值", border_style="magenta", expand=False))
+        console.print(Panel(_paragraph(result.career_value), title="求职参考价值", border_style="magenta", expand=False))
 
     if result.confidence < 0.6:
         console.print(Text(f"置信度: {result.confidence:.0%}（数据不足，结果仅供参考）", style="dim"))

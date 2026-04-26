@@ -31,8 +31,8 @@ def analyze(url: str = typer.Argument(..., help="GitHub 仓库 URL")) -> None:
     """分析 GitHub 仓库"""
     console.print(f"[cyan]正在分析: {url}[/cyan]")
     try:
-        result, grade, _ = AnalysisService().analyze(url)
-        render_report(result, grade)
+        result, grade, record = AnalysisService().analyze(url)
+        render_report(result, grade, record.repo_name)
     except ValueError as e:
         console.print(f"[red]错误: {e}[/red]")
         raise typer.Exit(1)
