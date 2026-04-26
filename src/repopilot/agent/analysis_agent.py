@@ -30,7 +30,7 @@ def _build_llm() -> ChatOpenAI:
         api_key=settings.openai_api_key,
         base_url=settings.openai_base_url,
         model=settings.openai_model,
-        temperature=0.2,
+        temperature=0.3,
     )
 
 
