@@ -461,9 +461,9 @@ uv run repopilot history
 tool-calling 阶段日志示例：
 
 ```text
-🔧 Tool 调用: get_repo_overview | owner/repo
-🔧 Tool 调用: get_directory_structure | owner/repo
-🔧 Tool 调用: search_code | owner/repo | query=tests pytest unittest
+Tool 调用: get_repo_overview | owner/repo
+Tool 调用: get_directory_structure | owner/repo
+Tool 调用: search_code | owner/repo | query=tests pytest unittest
 ```
 
 这些日志可以帮助观察 Agent 实际调用了哪些工具，以及分析证据来自哪里。
