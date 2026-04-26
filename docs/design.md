@@ -49,8 +49,8 @@ src/repopilot/
 │
 ├── database/                    # 数据库基础设施
 │   ├── __init__.py
-│   ├── models.py                # SQLAlchemy ORM 模型定义（通用基础模型）
-│   └── session.py               # 数据库引擎、连接、会话管理
+│   ├── sqlite.py                # SQLAlchemy 引擎、会话管理、ORM 模型
+│   └── chroma.py                # ChromaDB 客户端初始化、collection 管理
 │
 └── cli/                         # CLI 表现层
     ├── __init__.py
@@ -355,12 +355,15 @@ class AnalysisRecord(Base):
 - `AnalysisResult` — LLM 分析结果数据模型（含 confidence）
 - `GradeResult` — 等级映射结果（maturity_level, difficulty_level, 及对应 reason）
 
-### `database/models.py`
-- SQLAlchemy 通用基础模型定义（Base、AnalysisRecord 等 ORM 模型）
-
-### `database/session.py`
+### `database/sqlite.py`
+- SQLAlchemy ORM 模型定义（Base、AnalysisRecord）
 - 数据库引擎创建、会话管理
-- SQLite 文件默认路径：`database/repopilot.db`
+- SQLite 文件路径：`database/repopilot.db`（项目根目录下）
+
+### `database/chroma.py`
+- ChromaDB 持久化客户端初始化
+- collection 创建/获取/删除
+- ChromaDB 数据路径：`database/chroma/`（项目根目录下）
 
 ### `analysis/repository.py`
 - 分析记录的 CRUD 操作
@@ -442,8 +445,8 @@ class AnalysisRecord(Base):
 
 | Step | 任务 | 预计 | 验证方式 |
 |------|------|------|----------|
-| 26 | 实现 `database/models.py` — Base 定义、AnalysisRecord ORM 模型（含唯一约束和索引） | 0.5h | 模型类可导入 |
-| 27 | 实现 `database/session.py` — 引擎创建、会话管理器、启动时自动建表 | 1h | 启动时自动创建 `database/repopilot.db` |
+| 26 | 实现 `database/sqlite.py` — Base 定义、AnalysisRecord ORM 模型、引擎创建、会话管理、启动时自动建表 | 1h | 启动时自动创建 `database/repopilot.db` |
+| 27 | 实现 `database/chroma.py` — ChromaDB 客户端初始化、collection 创建/获取/删除 | 0.5h | `database/chroma/` 数据目录生成 |
 | 28 | 实现 `analysis/repository.py` — `save_analysis()` 将分析结果写入数据库 | 0.5h | 分析结果成功写入 |
 | 29 | 实现 `analysis/repository.py` — `get_history()` 查询所有历史记录 | 0.5h | 返回正确记录列表 |
 | 30 | 实现 `analysis/repository.py` — `get_by_repo()` 按仓库名查询 | 0.5h | 返回对应记录 |
@@ -537,8 +540,8 @@ class AnalysisRecord(Base):
 | `src/repopilot/analysis/repository.py` | 分析记录 CRUD 操作 |
 | `src/repopilot/analysis/service.py` | 分析业务编排 |
 | `src/repopilot/database/__init__.py` | 数据库基础设施包 |
-| `src/repopilot/database/models.py` | SQLAlchemy 通用基础模型 |
-| `src/repopilot/database/session.py` | 数据库引擎、连接、会话管理 |
+| `src/repopilot/database/sqlite.py` | SQLite ORM 模型、引擎、会话管理 |
+| `src/repopilot/database/chroma.py` | ChromaDB 客户端初始化、collection 管理 |
 | `src/repopilot/cli/__init__.py` | CLI 包 |
 | `src/repopilot/cli/app.py` | Typer 命令定义 |
 | `src/repopilot/cli/report.py` | Rich 终端渲染 |

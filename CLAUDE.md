@@ -49,6 +49,15 @@ All config via environment variables loaded by pydantic-settings in `config.py`:
 
 Business logs use emoji prefixes: `⏭️ 跳过`, `✅ 完成`, `📥 获取`. Format: `INFO:module_name:message`. httpx logs are auto-captured for LLM/embedding HTTP requests.
 
+## Code Explanation Requirement
+
+When writing or modifying any code in `agent/` or `rag/` directories, always follow the code with:
+1. A brief explanation covering: functionality, key libraries/concepts used, critical design decisions
+2. 2-3 likely interview questions about this code/concept
+3. Then wait for the user to ask questions before continuing to the next step
+
+This applies to: `agent/prompts.py`, `agent/analyzer.py`, `agent/tools.py`, `rag/vectorstore.py`, `rag/service.py`.
+
 ## Design Doc
 
 Full spec at `docs/design.md` — grading system, DB schema, report format, 63-step development plan.
