@@ -21,7 +21,7 @@ dependencies = [
 ]
 
 [project.scripts]
-repopilot = "repopilot.main:app"
+repopilot = "repopilot.cli.app:app"
 
 [tool.setuptools.packages.find]
 where = ["src"]

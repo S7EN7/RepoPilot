@@ -1,7 +1,6 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from repopilot.analysis.models import AnalysisRecord
 from repopilot.analysis.schemas import AnalysisResult, GradeResult
@@ -21,7 +20,7 @@ class AnalysisRepository:
                 select(AnalysisRecord).where(AnalysisRecord.repo_url == repo_url)
             )
             if existing:
-                existing.analyzed_at = datetime.utcnow()
+                existing.analyzed_at = datetime.now(timezone.utc)
                 existing.summary = result.summary
                 existing.maturity_level = grade.maturity_level
                 existing.difficulty_level = grade.difficulty_level
@@ -34,7 +33,7 @@ class AnalysisRepository:
             record = AnalysisRecord(
                 repo_url=repo_url,
                 repo_name=repo_name,
-                analyzed_at=datetime.utcnow(),
+                analyzed_at=datetime.now(timezone.utc),
                 summary=result.summary,
                 maturity_level=grade.maturity_level,
                 difficulty_level=grade.difficulty_level,

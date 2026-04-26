@@ -1,6 +1,4 @@
-def main():
-    print("Hello from repopilot!")
-
+from repopilot.cli.app import app
 
 if __name__ == "__main__":
-    main()
+    app()
