@@ -74,7 +74,7 @@ def _bullets(items: list[str], bullet_color: str = "cyan") -> Group:
     for item in items:
         clean = _clean_prefix(item)
         t = Text(overflow="fold")
-        t.append(f"  ▸ ", style=bullet_color)
+        t.append("  ▸ ", style=bullet_color)
         t.append(_wrap_text(clean, TEXT_WIDTH - 4, "    "))
         lines.append(t)
     return Group(*lines)
@@ -123,13 +123,13 @@ def render_report(result: AnalysisResult, grade: GradeResult, repo_name: str) ->
 
     suggestions = Text(overflow="fold")
     if result.suggestions.beginner:
-        suggestions.append(f"  [入门] ", style="dim")
+        suggestions.append("  [入门] ", style="dim")
         suggestions.append(f"{_wrap_text(result.suggestions.beginner, TEXT_WIDTH - 9, '         ')}\n")
     if result.suggestions.intermediate:
-        suggestions.append(f"  [中级] ", style="dim")
+        suggestions.append("  [中级] ", style="dim")
         suggestions.append(f"{_wrap_text(result.suggestions.intermediate, TEXT_WIDTH - 9, '         ')}\n")
     if result.suggestions.senior:
-        suggestions.append(f"  [高级] ", style="dim")
+        suggestions.append("  [高级] ", style="dim")
         suggestions.append(f"{_wrap_text(result.suggestions.senior, TEXT_WIDTH - 9, '         ')}")
     console.print(_panel(suggestions, "优化建议", "blue"))
 
